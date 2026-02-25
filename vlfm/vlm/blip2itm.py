@@ -1,4 +1,3 @@
-# Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
 
 from typing import Any, Optional
 
@@ -8,31 +7,33 @@ from PIL import Image
 
 from .server_wrapper import ServerMixin, host_model, send_request, str_to_image
 
-try:
-    from lavis.models import load_model_and_preprocess
-except ModuleNotFoundError:
-    print("Could not import lavis. This is OK if you are only using the client.")
+from transformers import AutoProcessor, Blip2ForImageTextRetrieval
 
 
 class BLIP2ITM:
-    """BLIP 2 Image-Text Matching model."""
+    """BLIP-2 Image-Text Retrieval/Matching model (Transformers)."""
 
     def __init__(
         self,
-        name: str = "blip2_image_text_matching",
-        model_type: str = "pretrain",
+        model_id: str = "Salesforce/blip2-itm-vit-g",
         device: Optional[Any] = None,
     ) -> None:
         if device is None:
-            device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+            device = torch.device("cuda")
 
-        self.model, self.vis_processors, self.text_processors = load_model_and_preprocess(
-            name=name,
-            model_type=model_type,
-            is_eval=True,
-            device=device,
-        )
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available, but GPU-only mode was requested.")
+
         self.device = device
+        self.model_id = model_id
+
+        self.processor = AutoProcessor.from_pretrained(model_id)
+        self.model = Blip2ForImageTextRetrieval.from_pretrained(
+            model_id,
+            torch_dtype=torch.float16,
+        ).to(self.device)
+
+        self.model.eval()
 
     def cosine(self, image: np.ndarray, txt: str) -> float:
         """
@@ -46,12 +47,10 @@ class BLIP2ITM:
             float: The cosine similarity between the image and the prompt.
         """
         pil_img = Image.fromarray(image)
-        img = self.vis_processors["eval"](pil_img).unsqueeze(0).to(self.device)
-        txt = self.text_processors["eval"](txt)
-        with torch.inference_mode():
-            cosine = self.model({"image": img, "text_input": txt}, match_head="itc").item()
-
-        return cosine
+        inputs = self.processor(images=pil_img, text=txt, return_tensors="pt").to(self.device, torch.float16)
+        out = self.model(**inputs, use_image_text_matching_head=False)
+        cosine = out.logits_per_image[0, 0].float().item()
+        return float(cosine)
 
 
 class BLIP2ITMClient:
@@ -69,6 +68,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=12182)
+    parser.add_argument("--model_id", type=str, default="Salesforce/blip2-itm-vit-g")
     args = parser.parse_args()
 
     print("Loading model...")
@@ -78,7 +78,7 @@ if __name__ == "__main__":
             image = str_to_image(payload["image"])
             return {"response": self.cosine(image, payload["txt"])}
 
-    blip = BLIP2ITMServer()
+    blip = BLIP2ITMServer(model_id=args.model_id)
     print("Model loaded!")
     print(f"Hosting on port {args.port}...")
     host_model(blip, name="blip2itm", port=args.port)

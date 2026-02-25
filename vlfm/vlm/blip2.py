@@ -1,5 +1,3 @@
-# Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
-
 from typing import Any, Optional
 
 import numpy as np
@@ -8,29 +6,33 @@ from PIL import Image
 
 from .server_wrapper import ServerMixin, host_model, send_request, str_to_image
 
-try:
-    from lavis.models import load_model_and_preprocess
-except ModuleNotFoundError:
-    print("Could not import lavis. This is OK if you are only using the client.")
+from transformers import Blip2Processor, Blip2ForConditionalGeneration
 
 
 class BLIP2:
     def __init__(
         self,
-        name: str = "blip2_t5",
-        model_type: str = "pretrain_flant5xxl",
+        model_id: str = "Salesforce/blip2-flan-t5-xl",
         device: Optional[Any] = None,
     ) -> None:
+        # GPU-only
         if device is None:
-            device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
+            device = torch.device("cuda")
 
-        self.model, self.vis_processors, _ = load_model_and_preprocess(
-            name=name,
-            model_type=model_type,
-            is_eval=True,
-            device=device,
-        )
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available, but GPU-only mode was requested.")
+
         self.device = device
+        self.model_id = model_id
+
+        self.processor = Blip2Processor.from_pretrained(model_id)
+
+        self.model = Blip2ForConditionalGeneration.from_pretrained(
+            model_id,
+        ).to(self.device)
+
+        self.model.eval()
+
 
     def ask(self, image: np.ndarray, prompt: Optional[str] = None) -> str:
         """Generates a caption for the given image.
@@ -45,12 +47,15 @@ class BLIP2:
 
         """
         pil_img = Image.fromarray(image)
-        with torch.inference_mode():
-            processed_image = self.vis_processors["eval"](pil_img).unsqueeze(0).to(self.device)
-            if prompt is None or prompt == "":
-                out = self.model.generate({"image": processed_image})[0]
-            else:
-                out = self.model.generate({"image": processed_image, "prompt": prompt})[0]
+        # with torch.inference_mode():
+        #     processed_image = self.vis_processors["eval"](pil_img).unsqueeze(0).to(self.device)
+        #     if prompt is None or prompt == "":
+        #         out = self.model.generate({"image": processed_image})[0]
+        #     else:
+        #         out = self.model.generate({"image": processed_image, "prompt": prompt})[0]
+        inputs = self.processor(pil_img, prompt, return_tensors="pt").to(self.device)
+        generated_ids = self.model.generate(**inputs)
+        out = self.processor.decode(generated_ids[0], skip_special_tokens=True)
 
         return out
 
@@ -72,6 +77,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8070)
+    parser.add_argument("--model_id", type=str, default="Salesforce/blip2-flan-t5-xl")
     args = parser.parse_args()
 
     print("Loading model...")
@@ -81,8 +87,7 @@ if __name__ == "__main__":
             image = str_to_image(payload["image"])
             return {"response": self.ask(image, payload.get("prompt"))}
 
-    # blip = BLIP2Server(name="blip2_opt", model_type="pretrain_opt2.7b")
-    blip = BLIP2Server(name="blip2_t5", model_type="pretrain_flant5xl")
+    blip = BLIP2Server(model_id=args.model_id)
     print("Model loaded!")
     print(f"Hosting on port {args.port}...")
     host_model(blip, name="blip2", port=args.port)
