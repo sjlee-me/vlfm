@@ -188,3 +188,10 @@ __pycache__/
 *.pyc
 
 data/
+outputs/
+video_dir/
+tb/
+lockfiles/
+
+*.pt
+*.pth

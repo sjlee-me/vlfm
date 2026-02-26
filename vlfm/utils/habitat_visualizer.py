@@ -248,7 +248,15 @@ def color_point_cloud_on_map(infos: List[Dict[str, Any]], policy_info: List[Dict
     )
 
     new_map = infos[0]["top_down_map"]["map"].copy()
-    new_map[grid_xy[:, 0], grid_xy[:, 1]] = MAP_TARGET_POINT_INDICATOR
+    valid_points = (
+        (grid_xy[:, 0] >= 0)
+        & (grid_xy[:, 0] < new_map.shape[0])
+        & (grid_xy[:, 1] >= 0)
+        & (grid_xy[:, 1] < new_map.shape[1])
+    )
+    grid_xy = grid_xy[valid_points]
+    if grid_xy.shape[0] > 0:
+        new_map[grid_xy[:, 0], grid_xy[:, 1]] = MAP_TARGET_POINT_INDICATOR
 
     infos[0]["top_down_map"]["map"] = new_map
 

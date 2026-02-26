@@ -6,5 +6,5 @@ docker run --rm -it \
   -v /hdd/hdd3/lsj/vlfm:/app/repo \
   -v /hdd/hdd3/lsj/HM3D_object_nav:/hdd/hdd3/lsj/HM3D_object_nav \
   -v /hdd/hdd3/lsj/LLM:/hdd/hdd3/lsj/LLM \
-  lsj_vlfm:0.3 \
+  lsj_vlfm:0.2 \
   /bin/bash
