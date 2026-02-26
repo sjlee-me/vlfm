@@ -113,11 +113,13 @@ ENV LD_LIBRARY_PATH "/usr/local/cuda/lib64:/app:${LD_LIBRARY_PATH}"
 ENV CUDA_HOME "/usr/local/cuda"
 
 # Install cmake using conada
-RUN conda install -y -c conda-forge cmake
+RUN conda install -y -c conda-forge cmake=3.14.0
 
 # upgrade pip
 RUN pip install --upgrade pip
-RUN pip install --no-cache-dir numpy==1.24.4 numpy-quaternion==2023.0.4
+RUN pip install --no-cache-dir numpy==1.24.4 numba==0.57.1 numpy-quaternion==2023.0.4 \
+    matplotlib==3.7.3 attrs gitpython imageio imageio-ffmpeg \
+    pillow scipy==1.12.0 tqdm
 RUN pip install --no-cache-dir ninja packaging fvcore iopath
 
 # Install torch
@@ -126,7 +128,11 @@ RUN pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.
 RUN pip install --no-cache-dir transformers accelerate qwen-vl-utils[decord]
 
 # Install habitat
-RUN conda install habitat-sim==0.2.4 headless -c conda-forge -c aihabitat
+# RUN conda install habitat-sim==0.2.4 headless -c conda-forge -c aihabitat
+WORKDIR /app
+RUN git clone --branch v0.2.4 https://github.com/facebookresearch/habitat-sim.git
+WORKDIR /app/habitat-sim
+RUN pip install --no-cache-dir . --no-build-isolation
 
 WORKDIR /app
 RUN git clone --branch v0.2.4 https://github.com/facebookresearch/habitat-lab.git
@@ -156,15 +162,16 @@ RUN pip install --no-cache-dir -e vc_models/
 WORKDIR /app
 
 # Install other python packages
-RUN pip install --no-cache-dir Pillow scipy==1.12.0 opencv-python==4.8.0.74 pynput termcolor pytest pytest-cov tqdm
+RUN pip install --no-cache-dir opencv-python==4.8.0.74 pynput termcolor pytest pytest-cov
 RUN pip install --no-cache-dir pygame h5py lxml hidapi psutil scikit-image==0.22 moviepy==1.0.3 flask open3d timm scikit-learn==1.2.2
-RUN pip install --no-cache-dir pyyaml ipython mkl mkl-include matplotlib==3.7.3 seaborn imageio
+RUN pip install --no-cache-dir pyyaml ipython matplotlib==3.7.3 seaborn imageio
 RUN pip install --no-cache-dir colorama==0.4.6 datasets==3.6.0 groq==0.9.0 ipykernel ipython gym==0.23.0 open3d PyYAML regex retrying typing_extensions
 RUN pip install --no-cache-dir pyvirtualdisplay ftfy GPUtil trimesh openai einops
 RUN pip install --no-cache-dir numpy==1.24.4 numba==0.57.1 numpy-quaternion==2023.0.4
-RUN pip install --no-cache-dir sentence_transformers
+RUN pip install --no-cache-dir sentence_transformers pandas==2.0.3 h5py==3.9.0 contourpy==1.2.0
 
 RUN pip install --no-cache-dir Cython==0.29.36
+RUN rm -rf /opt/conda/lib/python3.9/site-packages/numpy-2.0.2.dist-info
 
 # ARG USER_ID_LSJ=1002
 # ARG GROUP_ID_LSJ=1002

@@ -1,5 +1,6 @@
 # Copyright (c) 2023 Boston Dynamics AI Institute LLC. All rights reserved.
 
+import os
 import sys
 from typing import List, Optional
 
@@ -12,7 +13,10 @@ from vlfm.vlm.detections import ObjectDetections
 
 from .server_wrapper import ServerMixin, host_model, send_request, str_to_image
 
-sys.path.insert(0, "yolov7/")
+# Make yolov7 imports work in a variety of settings
+yolov7_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'yolov7'))
+sys.path.insert(0, yolov7_path)
+
 try:
     from models.experimental import attempt_load  # noqa: E402
     from utils.datasets import letterbox  # noqa: E402
